@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
 using Microsoft.VisualBasic;
+using System.Diagnostics;
 
 
 namespace InkSight
@@ -34,7 +35,7 @@ namespace InkSight
         private Ellipse ellipseMove;
         private bool isEllipseDragging;
         private System.Windows.Point ellipseDragStartPoint;
-        private BitmapSource croppedImage;
+        
 
         private string selectedStudentName;
         private string selectedSectionName;
@@ -88,8 +89,9 @@ namespace InkSight
             {
                 answerKeyName = Interaction.InputBox("Enter answer key name:", "Answer Key Name");
 
-                if (answerKeyName == null)
+                if (string.IsNullOrEmpty(answerKeyName))
                 {
+                    // User pressed cancel or entered an empty string
                     return;
                 }
 
@@ -106,12 +108,13 @@ namespace InkSight
             {
                 string numQuestionsInput = Interaction.InputBox("Input number of questions:", "Number of Questions");
 
-                if (numQuestionsInput == null)
+                if (string.IsNullOrEmpty(numQuestionsInput))
                 {
+                    // User pressed cancel or entered an empty string
                     return;
                 }
 
-                if (!string.IsNullOrWhiteSpace(numQuestionsInput) && int.TryParse(numQuestionsInput, out numQuestions) && numQuestions > 0)
+                if (int.TryParse(numQuestionsInput, out numQuestions) && numQuestions > 0)
                 {
                     break;
                 }
@@ -119,7 +122,7 @@ namespace InkSight
                 MessageBox.Show("Please enter a valid positive integer for the number of questions.");
             }
 
-            string answerKeyContent = "";
+            StringBuilder answerKeyContent = new StringBuilder();
             for (int i = 1; i <= numQuestions; i++)
             {
                 string answer = "";
@@ -127,9 +130,10 @@ namespace InkSight
                 {
                     answer = Interaction.InputBox($"Answer for Question {i}:", $"Question {i}");
 
-                    if (answer == null)
+                    if (string.IsNullOrEmpty(answer))
                     {
-                        return;
+                        // User pressed cancel, exit the loop and continue to save the answers entered so far
+                        break;
                     }
 
                     if (!string.IsNullOrWhiteSpace(answer) && !int.TryParse(answer, out _)) // Valid input
@@ -140,16 +144,22 @@ namespace InkSight
                     MessageBox.Show($"Answer for Question {i} cannot be empty or a number.");
                 }
 
-                answerKeyContent += $"{answer}\n";
+                if (string.IsNullOrEmpty(answer))
+                {
+                    // User pressed cancel, break out of the main loop
+                    break;
+                }
+
+                answerKeyContent.AppendLine(answer);
             }
 
             try
             {
                 string tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
-                System.IO.Directory.CreateDirectory(tempDir);
+                Directory.CreateDirectory(tempDir);
                 string answerKeyFilePath = System.IO.Path.Combine(tempDir, answerKeyName + ".txt");
 
-                File.WriteAllText(answerKeyFilePath, answerKeyContent);
+                File.WriteAllText(answerKeyFilePath, answerKeyContent.ToString());
 
                 string answerKeysFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AnswerKeys");
                 if (!Directory.Exists(answerKeysFolder))
@@ -198,6 +208,7 @@ namespace InkSight
                 MessageBox.Show($"Error saving answer key: {ex.Message}");
             }
         }
+
 
 
         private void BtnImportAnswerKey_Click(object sender, RoutedEventArgs e)
@@ -274,9 +285,12 @@ namespace InkSight
         {
             if (comboBoxAnswerKeys.SelectedItem != null)
             {
-                selectedZipFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AnswerKeys", comboBoxAnswerKeys.SelectedItem.ToString());
+                string selectedFileName = comboBoxAnswerKeys.SelectedItem.ToString();
+                selectedZipFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AnswerKeys", selectedFileName);
                 lblSelectedZipFilePath.Content = selectedZipFilePath;
-                answerKeyZipName = comboBoxAnswerKeys.SelectedItem.ToString();
+
+                // Remove the .zip extension from the final name
+                answerKeyZipName = System.IO.Path.GetFileNameWithoutExtension(selectedFileName);
             }
         }
 
@@ -526,7 +540,7 @@ namespace InkSight
                 {
                     CroppedBitmap croppedBitmap = new CroppedBitmap(displayedImage, new Int32Rect((int)x, (int)y, (int)width, (int)height));
 
-                    croppedImage = croppedBitmap;
+                   
 
                     imgDisplay.Source = croppedBitmap;
 
@@ -621,11 +635,11 @@ namespace InkSight
                 }
 
                 Mat brightenedImage = new Mat();
-                claheImage.ConvertTo(brightenedImage, -1, 1, 80); // Increase brightness by adding 80 to pixel values
+                claheImage.ConvertTo(brightenedImage, -1, 1, 100); // Increase brightness by adding 80 to pixel values
 
                 Mat sharpenedImage = new Mat();
                 Cv2.GaussianBlur(brightenedImage, sharpenedImage, new OpenCvSharp.Size(3, 3), 3);
-                Cv2.AddWeighted(brightenedImage, 1.5, sharpenedImage, -0.3, 0, sharpenedImage);
+                Cv2.AddWeighted(brightenedImage, 1.6, sharpenedImage, -0.3, 0, sharpenedImage);
 
                 Mat denoisedImage = new Mat();
                 Cv2.GaussianBlur(sharpenedImage, denoisedImage, new OpenCvSharp.Size(5, 5), 0);
@@ -658,18 +672,6 @@ namespace InkSight
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
         private async void BtnProcess_Click(object sender, RoutedEventArgs e)
         {
             if (comboBoxAnswerKeys.SelectedItem == null)
@@ -680,39 +682,88 @@ namespace InkSight
 
             try
             {
-
                 if (imgDisplay.Source == null)
                 {
                     MessageBox.Show("No image loaded.");
                     return;
                 }
 
-
                 BitmapSource bitmapSource = (BitmapSource)imgDisplay.Source;
 
+                // Perform OCR and get results
                 List<TestResult> results = await PerformOCR(bitmapSource);
 
+                // Call LoadAnswerKey and other necessary methods
                 LoadAnswerKey(results);
-
-                dataGridResults.ItemsSource = results;
                 UpdateTotalScore(results);
                 UpdateAnswerKeyTable(results);
 
+                // Generate CSV file with just the OCR Answer
+                string csvFilePath = GenerateCsv(results, answerKeyZipName);
 
-                MessageBox.Show("Image processed successfully.");
+                // Provide feedback to the user
+                MessageBox.Show($"Image processed successfully. CSV file created at {csvFilePath}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error processing image: {ex.Message}");
             }
 
-            if (cropRectangle.Visibility == Visibility.Collapsed)
-            {
-                imgDisplay.Source = originalImageSource;
-                cropRectangle.Visibility = Visibility.Visible;
-                ellipseMove.Visibility = Visibility.Visible;
-            }
+           
         }
+        private string GenerateCsv(List<TestResult> results, string answerKeyZipName)
+        {
+            // Define the folder path
+            string folderPath = @"test_logs";
+
+            // Check if folder exists, create if not
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
+
+            // Define the file path
+            string fileName = $"test_results_{answerKeyZipName}.csv";
+            string filePath = System.IO.Path.Combine(folderPath, fileName);
+
+            // Determine if the file exists
+            bool fileExists = File.Exists(filePath);
+
+            // Build the CSV content
+            StringBuilder csvBuilder = new StringBuilder();
+
+            // If file doesn't exist, write header line
+            if (!fileExists)
+            {
+                csvBuilder.AppendLine("OCR Answer,Formatted Answer Key,Score");
+            }
+
+            foreach (var result in results)
+            {
+                // Replace null AnswerKey with '---'
+                string answerKey = result.AnswerKey ?? "---";
+
+                // Handle null Answer by setting it to '---'
+                string answer = result.Answer ?? "---";
+
+                // Append each result to the CSV, including Answer, Formatted Answer Key, Score, and Levenshtein Distance
+                csvBuilder.AppendLine($"{answer},{answerKey},{result.Score},");
+            }
+
+            // Append CSV data to file
+            File.AppendAllText(filePath, csvBuilder.ToString());
+
+            // Return the file path where CSV is saved or appended
+            return filePath;
+        }
+
+       
+
+
+
+
+
+
 
         private async Task<List<TestResult>> PerformOCR(BitmapSource bitmapSource)
         {
@@ -816,6 +867,7 @@ namespace InkSight
             }
         }
 
+
         private List<TestResult> ReadAnswerKey(string zipFilePath)
         {
             List<TestResult> testResults = new List<TestResult>();
@@ -877,8 +929,6 @@ namespace InkSight
 
 
 
-
-
         private void LoadAnswerKey(List<TestResult> results)
         {
             if (comboBoxAnswerKeys.SelectedItem == null)
@@ -900,7 +950,6 @@ namespace InkSight
             {
                 List<TestResult> answerKeyResults = ReadAnswerKey(selectedZipFilePath);
 
-
                 foreach (TestResult result in results)
                 {
                     TestResult matchingAnswerKey = answerKeyResults.FirstOrDefault(r => r.No == result.No);
@@ -911,29 +960,38 @@ namespace InkSight
                         result.AnswersList = matchingAnswerKey.AnswersList;
 
                         bool isCaseSensitiveChecked = chkIsCaseSensitive.IsChecked ?? false;
-                        bool isAnswerCorrect = false;
+                        int score = 0;
 
-                        foreach (string answer in matchingAnswerKey.AnswersList)
+                        // Parse result answer into a list if it contains commas, otherwise treat as single item list
+                        List<string> providedAnswers = result.Answer.Contains(',')
+                            ? result.Answer.Split(',').Select(a => a.Trim()).ToList()
+                            : new List<string> { result.Answer.Trim() };
+
+                        // Compare each provided answer to the answers in the answer key
+                        foreach (string providedAnswer in providedAnswers)
                         {
-                            if (isCaseSensitiveChecked)
+                            foreach (string answer in matchingAnswerKey.AnswersList)
                             {
-                                if (string.Equals(result.Answer.Trim(), answer.Trim(), StringComparison.Ordinal))
+                                if (isCaseSensitiveChecked)
                                 {
-                                    isAnswerCorrect = true;
-                                    break;
+                                    if (string.Equals(providedAnswer, answer.Trim(), StringComparison.Ordinal))
+                                    {
+                                        score++;
+                                        break;
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                if (string.Equals(result.Answer.Trim(), answer.Trim(), StringComparison.OrdinalIgnoreCase))
+                                else
                                 {
-                                    isAnswerCorrect = true;
-                                    break;
+                                    if (string.Equals(providedAnswer, answer.Trim(), StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        score++;
+                                        break;
+                                    }
                                 }
                             }
                         }
 
-                        result.Score = isAnswerCorrect ? 1 : 0;
+                        result.Score = score;
                     }
                 }
             }
@@ -944,24 +1002,20 @@ namespace InkSight
         }
 
 
-
         private void UpdateAnswerKeyTable(List<TestResult> results)
         {
-
             dataGridResults.Items.Clear();
-
-
             dataGridResults.Columns.Clear();
-            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "No", Binding = new Binding("No") });
-            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "OCR Answer", Binding = new Binding("Answer") });
-            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "Answer Key", Binding = new Binding("FormattedAnswerKey") });
-            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "Score", Binding = new Binding("Score") });
+
+            // Adding columns with specified widths
+            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "No", Binding = new Binding("No"), Width = new DataGridLength(1, DataGridLengthUnitType.Auto) });
+            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "OCR Answer", Binding = new Binding("Answer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "Answer Key", Binding = new Binding("FormattedAnswerKey"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+            dataGridResults.Columns.Add(new DataGridTextColumn { Header = "Score", Binding = new Binding("Score"), Width = new DataGridLength(1, DataGridLengthUnitType.Auto) });
 
             foreach (var result in results)
             {
-
                 string formattedAnswerKey = string.Join(", ", result.AnswersList);
-
 
                 var displayResult = new
                 {
@@ -976,14 +1030,15 @@ namespace InkSight
         }
 
 
+
+
         private string UpdateTotalScore(List<TestResult> results)
         {
             try
             {
                 int totalScoreValue = results.Sum(r => r.Score);
-                int totalCount = results.Count;
 
-                string totalScoreText = $"{totalScoreValue}|{totalCount}";
+                string totalScoreText = $"{totalScoreValue}";
                 txtTotalScore.Text = totalScoreText;
 
                 return totalScoreText;
@@ -1352,7 +1407,27 @@ namespace InkSight
             }
         }
 
-        private void AzureApiPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        
+
+        private void OpenGrade_Click(object sender, RoutedEventArgs e)
+        {
+        try
+        {
+            string testGradesFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test_grades");
+
+            // Open File Explorer and navigate to the test_grades folder
+            Process.Start("explorer.exe", testGradesFolder);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening test grades folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+         }
+
+
+
+
+    private void AzureApiPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
             PasswordBox passwordBox = sender as PasswordBox;
             if (passwordBox != null)
