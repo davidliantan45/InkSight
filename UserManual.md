@@ -23,15 +23,11 @@
 - **Function:** Reverts the application to its original state.
 - **Usage:** Click "Reset to Original" to undo any changes or resets made during the session.
 
-## Crop
+## Crop Image
 
 - **Function:** Crops the image.
 - **Usage:** Click "Crop" to select a region of interest in the image for further processing.
 
-## Crop + preprocess
-
-- **Function:** Crops the image and applies preprocessing operations.
-- **Usage:** Click "Crop + preprocess" to select a region of interest in the image and then apply preprocessing techniques.
 
 ## 90 and - 90
 
