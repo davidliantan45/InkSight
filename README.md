@@ -5,7 +5,7 @@
 ## Requirements
 
 - .NET Framework 4.8 or higher
-- Azure OCR Read API (Subscription not included; a temporary key is hardcoded in the demo)
+- Azure OCR Read API (Subscription not included)
 
 ## Features
 
