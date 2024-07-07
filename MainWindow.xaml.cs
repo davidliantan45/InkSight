@@ -35,7 +35,7 @@ namespace InkSight
         private Ellipse ellipseMove;
         private bool isEllipseDragging;
         private System.Windows.Point ellipseDragStartPoint;
-        
+
 
         private string selectedStudentName;
         private string selectedSectionName;
@@ -81,7 +81,7 @@ namespace InkSight
             }
         }
 
-        private void BtnUploadAnswerKey_Click(object sender, RoutedEventArgs e)
+        private void BtnCreateAnswerKey_Click(object sender, RoutedEventArgs e)
         {
             string answerKeyName = "";
 
@@ -91,7 +91,7 @@ namespace InkSight
 
                 if (string.IsNullOrEmpty(answerKeyName))
                 {
-                    // User pressed cancel or entered an empty string
+                   
                     return;
                 }
 
@@ -110,7 +110,7 @@ namespace InkSight
 
                 if (string.IsNullOrEmpty(numQuestionsInput))
                 {
-                    // User pressed cancel or entered an empty string
+                   
                     return;
                 }
 
@@ -132,11 +132,11 @@ namespace InkSight
 
                     if (string.IsNullOrEmpty(answer))
                     {
-                        // User pressed cancel, exit the loop and continue to save the answers entered so far
+                       
                         break;
                     }
 
-                    if (!string.IsNullOrWhiteSpace(answer) && !int.TryParse(answer, out _)) // Valid input
+                    if (!string.IsNullOrWhiteSpace(answer) && !int.TryParse(answer, out _)) 
                     {
                         break;
                     }
@@ -146,7 +146,7 @@ namespace InkSight
 
                 if (string.IsNullOrEmpty(answer))
                 {
-                    // User pressed cancel, break out of the main loop
+                    
                     break;
                 }
 
@@ -184,18 +184,6 @@ namespace InkSight
                 using (ZipArchive zip = ZipFile.Open(zipFilePath, ZipArchiveMode.Create))
                 {
                     zip.CreateEntryFromFile(answerKeyFilePath, answerKeyName + ".txt");
-                }
-
-                string zipPassFolderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ZipPass");
-                if (!Directory.Exists(zipPassFolderPath))
-                {
-                    Directory.CreateDirectory(zipPassFolderPath);
-                }
-
-                string keyMapFilePath = System.IO.Path.Combine(zipPassFolderPath, "KeyMap.txt");
-                using (StreamWriter writer = File.AppendText(keyMapFilePath))
-                {
-                    writer.WriteLine($"{answerKeyName}");
                 }
 
                 Directory.Delete(tempDir, true);
@@ -289,11 +277,10 @@ namespace InkSight
                 selectedZipFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AnswerKeys", selectedFileName);
                 lblSelectedZipFilePath.Content = selectedZipFilePath;
 
-                // Remove the .zip extension from the final name
+
                 answerKeyZipName = System.IO.Path.GetFileNameWithoutExtension(selectedFileName);
             }
         }
-
 
 
         private void PopulateAnswerKeyComboBox()
@@ -336,8 +323,6 @@ namespace InkSight
                 MessageBox.Show($"Error populating section list: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-
 
 
         private void ImageCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -420,9 +405,6 @@ namespace InkSight
 
 
             ImageCanvas.Children.Add(ellipseMove);
-
-
-
         }
 
 
@@ -535,12 +517,15 @@ namespace InkSight
                 double width = cropRectangle.Width * scaleX;
                 double height = cropRectangle.Height * scaleY;
 
-                if (x >= 0 && y >= 0 && width > 0 && height > 0 &&
-                    x + width <= displayedImage.PixelWidth && y + height <= displayedImage.PixelHeight)
+                // Ensure the coordinates and dimensions are within the image bounds
+                x = Math.Max(0, x);
+                y = Math.Max(0, y);
+                width = Math.Min(displayedImage.PixelWidth - x, width);
+                height = Math.Min(displayedImage.PixelHeight - y, height);
+
+                if (width > 0 && height > 0)
                 {
                     CroppedBitmap croppedBitmap = new CroppedBitmap(displayedImage, new Int32Rect((int)x, (int)y, (int)width, (int)height));
-
-                   
 
                     imgDisplay.Source = croppedBitmap;
 
@@ -596,80 +581,7 @@ namespace InkSight
 
             imgDisplay.Source = rotatedBitmap;
         }
-        private void BtnPreprocess_Click(object sender, RoutedEventArgs e)
-        {
-            if (cropRectangle.Visibility == Visibility.Collapsed)
-            {
-                MessageBox.Show("Image has already been cropped");
-            }
-            else
-            {
-                CropImage();
-            }
-
-            try
-            {
-                // Check if an image is loaded
-                if (imgDisplay.Source == null || !(imgDisplay.Source is BitmapSource bitmapSource))
-                {
-                    MessageBox.Show("No image loaded.");
-                    return;
-                }
-
-                // Convert BitmapSource to Mat (assuming OpenCVSharp is used for processing)
-                Mat originalImage = BitmapSourceConverter.ToMat(bitmapSource);
-
-                if (originalImage.Empty())
-                {
-                    MessageBox.Show("Failed to convert image to Mat.");
-                    return;
-                }
-
-                Mat grayImage = new Mat();
-                Cv2.CvtColor(originalImage, grayImage, ColorConversionCodes.BGR2GRAY);
-
-                Mat claheImage = new Mat();
-                using (CLAHE clahe = Cv2.CreateCLAHE(3.0, new OpenCvSharp.Size(24, 24)))
-                {
-                    clahe.Apply(grayImage, claheImage);
-                }
-
-                Mat brightenedImage = new Mat();
-                claheImage.ConvertTo(brightenedImage, -1, 1, 100); // Increase brightness by adding 80 to pixel values
-
-                Mat sharpenedImage = new Mat();
-                Cv2.GaussianBlur(brightenedImage, sharpenedImage, new OpenCvSharp.Size(3, 3), 3);
-                Cv2.AddWeighted(brightenedImage, 1.6, sharpenedImage, -0.3, 0, sharpenedImage);
-
-                Mat denoisedImage = new Mat();
-                Cv2.GaussianBlur(sharpenedImage, denoisedImage, new OpenCvSharp.Size(5, 5), 0);
-
-                Mat thresholdedImage = new Mat();
-                Cv2.AdaptiveThreshold(
-                    denoisedImage,
-                    thresholdedImage,
-                    maxValue: 255,
-                    adaptiveMethod: AdaptiveThresholdTypes.GaussianC,
-                    thresholdType: ThresholdTypes.Binary,
-                    blockSize: 9,
-                    c: 2
-                );
-
-                
-                BitmapSource processedBitmap = BitmapSourceConverter.ToBitmapSource(thresholdedImage);
-
-                
-                imgDisplay.Source = processedBitmap;
-
-              
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error preprocessing image: {ex.Message}");
-            }
-        }
-
+        
 
 
         private async void BtnProcess_Click(object sender, RoutedEventArgs e)
@@ -698,7 +610,7 @@ namespace InkSight
                 UpdateTotalScore(results);
                 UpdateAnswerKeyTable(results);
 
-                // Generate CSV file with just the OCR Answer
+
                 string csvFilePath = GenerateCsv(results, answerKeyZipName);
 
                 // Provide feedback to the user
@@ -709,11 +621,10 @@ namespace InkSight
                 Console.WriteLine($"Error processing image: {ex.Message}");
             }
 
-           
+
         }
         private string GenerateCsv(List<TestResult> results, string answerKeyZipName)
         {
-            // Define the folder path
             string folderPath = @"test_logs";
 
             // Check if folder exists, create if not
@@ -722,48 +633,34 @@ namespace InkSight
                 Directory.CreateDirectory(folderPath);
             }
 
-            // Define the file path
             string fileName = $"test_results_{answerKeyZipName}.csv";
             string filePath = System.IO.Path.Combine(folderPath, fileName);
 
-            // Determine if the file exists
             bool fileExists = File.Exists(filePath);
 
-            // Build the CSV content
             StringBuilder csvBuilder = new StringBuilder();
 
-            // If file doesn't exist, write header line
+            // Add headers if the file does not exist
             if (!fileExists)
             {
-                csvBuilder.AppendLine("OCR Answer,Formatted Answer Key,Score");
+                csvBuilder.AppendLine("Timestamp,OCR Answer,Formatted Answer Key,Score");
             }
 
             foreach (var result in results)
             {
-                // Replace null AnswerKey with '---'
                 string answerKey = result.AnswerKey ?? "---";
-
-                // Handle null Answer by setting it to '---'
                 string answer = result.Answer ?? "---";
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-                // Append each result to the CSV, including Answer, Formatted Answer Key, Score, and Levenshtein Distance
-                csvBuilder.AppendLine($"{answer},{answerKey},{result.Score},");
+                csvBuilder.AppendLine($"{timestamp},{answer},{answerKey},{result.Score}");
             }
 
-            // Append CSV data to file
+            // Write to the file
             File.AppendAllText(filePath, csvBuilder.ToString());
 
             // Return the file path where CSV is saved or appended
             return filePath;
         }
-
-       
-
-
-
-
-
-
 
         private async Task<List<TestResult>> PerformOCR(BitmapSource bitmapSource)
         {
@@ -771,8 +668,8 @@ namespace InkSight
 
             try
             {
-                // Hardcode Key for Demonstration purposes
-                subscriptionKey = "502b79a8ca5c4de688ef2211f72ed03f";
+              
+                
                 string endpoint = "https://ocr-thesis.cognitiveservices.azure.com/";
                 ComputerVisionClient client = new ComputerVisionClient(new ApiKeyServiceClientCredentials(subscriptionKey))
                 {
@@ -822,6 +719,8 @@ namespace InkSight
                                 cleanedLineText = Regex.Replace(cleanedLineText, @"^\d+\s[.,]", "").Trim();
                                 cleanedLineText = Regex.Replace(cleanedLineText, @"^\d+[,%/]", "").Trim();
                                 cleanedLineText = Regex.Replace(cleanedLineText, @"^\p{L}\p{P}", "").Trim();
+                                cleanedLineText = Regex.Replace(cleanedLineText, @"[^\w\s,]", "").Trim();
+
 
                                 if (string.IsNullOrWhiteSpace(cleanedLineText))
                                 {
@@ -854,7 +753,6 @@ namespace InkSight
 
             return results;
         }
-
 
         private byte[] ImageToByteArray(BitmapSource bitmapSource)
         {
@@ -1407,27 +1305,27 @@ namespace InkSight
             }
         }
 
-        
+
 
         private void OpenGrade_Click(object sender, RoutedEventArgs e)
         {
-        try
-        {
-            string testGradesFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test_grades");
+            try
+            {
+                string testGradesFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test_grades");
 
-            // Open File Explorer and navigate to the test_grades folder
-            Process.Start("explorer.exe", testGradesFolder);
+                // Open File Explorer and navigate to the test_grades folder
+                Process.Start("explorer.exe", testGradesFolder);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening test grades folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error opening test grades folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-         }
 
 
 
 
-    private void AzureApiPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void AzureApiPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
             PasswordBox passwordBox = sender as PasswordBox;
             if (passwordBox != null)
@@ -1440,6 +1338,8 @@ namespace InkSight
 
 
         }
+
+     
     }
 }
 
