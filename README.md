@@ -28,3 +28,9 @@
 3. Open the solution in Visual Studio.
 4. Update the Azure OCR Read API key in the configuration file.
 5. Build and run the application.
+
+Usage
+
+For detailed instructions on using the program, refer to the following document:
+
+- [User Manual](User%20Manual.md)
