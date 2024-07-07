@@ -29,7 +29,7 @@
 4. Update the Azure OCR Read API key in the configuration file.
 5. Build and run the application.
 
-Usage
+## Usage
 
 For detailed instructions on using the program, refer to the following document:
 
