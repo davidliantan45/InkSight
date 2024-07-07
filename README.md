@@ -33,4 +33,4 @@
 
 For detailed instructions on using the program, refer to the following document:
 
-- [User Manual](User%20Manual.md)
+- [User Manual](UserManual.md)
