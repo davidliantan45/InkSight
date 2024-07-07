@@ -13,7 +13,7 @@
 - **Answer Key Creation**: Allows creation of user-input answer keys and the importation of answer keys from .txt files.
 - **OCR Processing**: Uses Azure OCR Read API to extract text from images.
 
-- **Text Post-Processing**: Trims numbering formats (e.g., 1, 1., 1., 1.)).
+- **Text Cleaning**: Trims numbering formats (e.g., 1, 1., 1., 1.)).
 - **Comparison and Scoring**: Tabulates text readings into a table for direct comparison and scoring based on the answer key.
 - **Student and Section Management**: Provides options to create lists for sections and students.
 - **Export Functionality**: Exports student, section, and total scores as a CSV file.
